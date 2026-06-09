@@ -608,6 +608,7 @@ is written):
 - **Gemini CLI**
 - **Antigravity IDE**
 - **Kiro**
+- **Qoder CLI**
 
 ## Supported Languages
 

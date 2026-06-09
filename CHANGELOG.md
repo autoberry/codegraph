@@ -11,6 +11,8 @@ and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### New Features
 
+- `codegraph install` now natively supports **Qoder CLI**. When `~/.qoder/` is detected the installer auto-selects it in the multiselect prompt and writes `mcpServers.codegraph` to `~/.qoder/settings.json` (global) or `<project>/.qoder/settings.json` (local). Fully idempotent and reversible with `--uninstall`. Use `--target=qoder` to target it explicitly.
+
 - `codegraph status --json` now also reports the running CLI `version`, the index directory (`indexPath`), and a `lastIndexed` timestamp (ISO-8601, or null when nothing's indexed yet), so CI and scripts can pin the CLI version and check index freshness from a single command. A matching `CodeGraph.getLastIndexedAt()` library method exposes the same freshness check without shelling out. Thanks @12122J and @eddieran. (#329)
 
 ### Fixes

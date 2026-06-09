@@ -1378,6 +1378,103 @@ describe('Installer — Cursor rules file cleanup on uninstall', () => {
   });
 });
 
+describe('Installer targets — qoder specifics', () => {
+  let tmpHome: string;
+  let tmpCwd: string;
+  let origCwd: string;
+  let homeRestore: { restore: () => void };
+
+  beforeEach(() => {
+    tmpHome = mkTmpDir('home');
+    tmpCwd = mkTmpDir('cwd');
+    origCwd = process.cwd();
+    process.chdir(tmpCwd);
+    homeRestore = setHome(tmpHome);
+  });
+
+  afterEach(() => {
+    homeRestore.restore();
+    process.chdir(origCwd);
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+    fs.rmSync(tmpCwd, { recursive: true, force: true });
+  });
+
+  const qoder = getTarget('qoder')!;
+
+  it('global install writes ~/.qoder/settings.json', () => {
+    const result = qoder.install('global', { autoAllow: true });
+    const expectedPath = path.join(tmpHome, '.qoder', 'settings.json');
+    expect(result.files[0]!.path).toBe(expectedPath);
+    expect(fs.existsSync(expectedPath)).toBe(true);
+    const data = JSON.parse(fs.readFileSync(expectedPath, 'utf-8'));
+    expect(data.mcpServers.codegraph).toBeDefined();
+  });
+
+  it('local install writes <cwd>/.qoder/settings.json', () => {
+    const result = qoder.install('local', { autoAllow: true });
+    const expectedPath = path.join(tmpCwd, '.qoder', 'settings.json');
+    expect(result.files[0]!.path).toBe(expectedPath);
+    expect(fs.existsSync(expectedPath)).toBe(true);
+    const data = JSON.parse(fs.readFileSync(expectedPath, 'utf-8'));
+    expect(data.mcpServers.codegraph).toBeDefined();
+  });
+
+  it('install does not create settings.local.json, AGENTS.md, or permissions', () => {
+    qoder.install('global', { autoAllow: true });
+    qoder.install('local', { autoAllow: true });
+    expect(fs.existsSync(path.join(tmpHome, '.qoder', 'settings.local.json'))).toBe(false);
+    expect(fs.existsSync(path.join(tmpHome, '.qoder', 'AGENTS.md'))).toBe(false);
+    expect(fs.existsSync(path.join(tmpCwd, '.qoder', 'settings.local.json'))).toBe(false);
+    expect(fs.existsSync(path.join(tmpCwd, '.qoder', 'AGENTS.md'))).toBe(false);
+  });
+
+  it('detect returns installed=false when ~/.qoder does not exist', () => {
+    const detection = qoder.detect('global');
+    expect(detection.installed).toBe(false);
+    expect(detection.alreadyConfigured).toBe(false);
+  });
+
+  it('detect returns installed=false when <cwd>/.qoder does not exist', () => {
+    const detection = qoder.detect('local');
+    expect(detection.installed).toBe(false);
+    expect(detection.alreadyConfigured).toBe(false);
+  });
+
+  it('resolveTargetFlag("qoder", loc) returns [qoderTarget]', () => {
+    const resolved = resolveTargetFlag('qoder', 'global');
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]!.id).toBe('qoder');
+  });
+
+  it('install preserves existing mcpServers.filesystem sibling', () => {
+    const settingsPath = path.join(tmpHome, '.qoder', 'settings.json');
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      mcpServers: { filesystem: { type: 'stdio', command: 'fs-server' } },
+      userPref: 'dark',
+    }, null, 2) + '\n');
+
+    qoder.install('global', { autoAllow: true });
+
+    const after = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+    expect(after.mcpServers.filesystem).toEqual({ type: 'stdio', command: 'fs-server' });
+    expect(after.mcpServers.codegraph).toBeDefined();
+    expect(after.userPref).toBe('dark');
+  });
+
+  it('install returns unchanged when mcpServers.codegraph already matches', () => {
+    qoder.install('global', { autoAllow: true });
+    const settingsPath = path.join(tmpHome, '.qoder', 'settings.json');
+    const bytesBefore = fs.readFileSync(settingsPath);
+
+    const second = qoder.install('global', { autoAllow: true });
+    expect(second.files[0]!.action).toBe('unchanged');
+
+    const bytesAfter = fs.readFileSync(settingsPath);
+    expect(bytesAfter.equals(bytesBefore)).toBe(true);
+  });
+});
+
 function listAllFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
   const out: string[] = [];
